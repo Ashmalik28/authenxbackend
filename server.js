@@ -565,7 +565,10 @@ app.get("/auth/check" , authMiddleware , (req , res) => {
 
 
 connectDB().then(() => {
-  app.listen(process.env.PORT || 3000, () => {
-    console.log("Server running");
+  const PORT = process.env.PORT || 3000; // Define PORT
+  
+  app.listen(PORT, () => {
+    // Log the *actual* port it's using
+    console.log(`Server running on port ${PORT}`); 
   });
 });
