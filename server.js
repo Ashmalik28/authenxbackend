@@ -418,7 +418,7 @@ app.post("/issue", authMiddleware, async (req, res) => {
   }
 });
 
-app.post("/getWallet" , authMiddleware , async (req , res) => {
+app.post("/getWallet" , async (req , res) => {
   try {
     const {docHash} = req.body;
     let doc = await issuedDocsModel.findOne({docHash});
