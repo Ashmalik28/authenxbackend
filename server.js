@@ -19,6 +19,22 @@ dotenv.config();
 
 const app = express();
 
+
+app.use(
+  cors({
+    origin: "https://authenxfrontend1.vercel.app",
+    methods: "GET,POST,PUT,DELETE",
+    allowedHeaders: "Content-Type, Authorization",
+    credentials: true,
+    preflightContinue: false,
+    optionsSuccessStatus: 200,
+  })
+);
+
+app.options("*", cors());
+
+app.use(express.json());
+
 const uploadDir = "uploads";
 if(!fs.existsSync(uploadDir)){
    fs.mkdirSync(uploadDir);
@@ -67,19 +83,6 @@ const upload = multer({
 
 app.use("/uploads" , express.static(uploadDir));
 
-
-app.use(
-  cors({
-    origin: "https://authenxfrontend1.vercel.app",
-    methods: "GET,POST,PUT,DELETE",
-    allowedHeaders: "Content-Type, Authorization",
-    credentials: true,
-    preflightContinue: false,
-    optionsSuccessStatus: 200,
-  })
-);
-
-app.use(express.json());
 
 const SignupSchema = z.object({
   firstName : z.string().min(2 , "First name should contain atleast 2 characters").max(10 , "First name should contain at max 20 characters"),
