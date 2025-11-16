@@ -69,8 +69,14 @@ app.use("/uploads" , express.static(uploadDir));
 
 
 app.use(cors({
-  origin : "https://authenxfrontend1.vercel.app"
-}))
+  origin: "https://authenxfrontend1.vercel.app",
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true
+}));
+
+app.options("*", cors());
+
 app.use(express.json());
 
 const SignupSchema = z.object({
