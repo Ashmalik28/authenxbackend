@@ -69,7 +69,7 @@ app.use("/uploads" , express.static(uploadDir));
 
 
 app.use(cors({
-  origin : "https://authenxfrontend1.vercel.app/"
+  origin : "https://authenxfrontend1.vercel.app"
 }))
 app.use(express.json());
 
