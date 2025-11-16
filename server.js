@@ -118,8 +118,6 @@ export const OrgKYCSchema = z.object({
   personalEmail: z.string().email("Invalid personal email format"),
 });
 
-connectDB();
-
 app.post("/nonce" , async function(req ,res){
   const {walletAddress} = req.body;
   if(!walletAddress){
@@ -577,6 +575,8 @@ app.get("/auth/check" , authMiddleware , (req , res) => {
 });
 
 
-app.listen(process.env.PORT || 3000 , () => {
-  console.log(`Server running on port ${process.env.PORT}`);
+connectDB().then(() => {
+  app.listen(process.env.PORT || 3000, () => {
+    console.log("Server running");
+  });
 });
