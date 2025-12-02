@@ -21,7 +21,7 @@ const app = express();
 
 
 const corsOptions = {
-  origin: 'https://authenxfrontend1.vercel.app',
+  origin: ['https://authenxfrontend1.vercel.app', 'https://www.authenx.in'],
   methods: ["GET", "POST", "PUT", "DELETE", 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 };
