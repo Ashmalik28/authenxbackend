@@ -5,7 +5,7 @@ import VerifierModel from './models/Verifier.js';
 import OrganizationModel from "./models/Organization.js";
 import VerificationModel from "./models/Verification.js";
 import issuedDocsModel from "./models/IssuedDocs.js";
-import TransactionModel from "./models/transactions.js";
+import TransactionModel from "./models/Transactions.js";
 import cors from "cors"
 import { z} from "zod"
 import bcrypt from "bcrypt"
