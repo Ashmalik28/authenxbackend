@@ -5,6 +5,7 @@ import VerifierModel from './models/Verifier.js';
 import OrganizationModel from "./models/Organization.js";
 import VerificationModel from "./models/Verification.js";
 import issuedDocsModel from "./models/IssuedDocs.js";
+import TransactionModel from "./models/transactions.js";
 import cors from "cors"
 import { z} from "zod"
 import bcrypt from "bcrypt"
@@ -21,7 +22,7 @@ const app = express();
 
 
 const corsOptions = {
-  origin: ['https://authenxfrontend1.vercel.app', 'https://www.authenx.in'],
+  origin: ['https://authenxfrontend1.vercel.app', 'https://www.authenx.in' , 'http://localhost:5173' ],
   methods: ["GET", "POST", "PUT", "DELETE", 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 };
@@ -415,6 +416,77 @@ app.post("/issue", authMiddleware, async (req, res) => {
   } catch (err) {
     console.error("DB error:", err.message);
     res.status(500).json({ error: "Server error" });
+  }
+});
+
+app.post("/transactions", authMiddleware, async (req, res) => {
+  try {
+    const {
+      action,
+      status,
+      txHash,
+      blockNumber,
+      personName,
+      personWallet,
+      orgName,
+      docType,
+      docHash,
+    } = req.body;
+
+    const existingTransaction = await TransactionModel.findOne({ txHash });
+
+    if (existingTransaction) {
+      return res.status(409).json({
+        success: false,
+        message: "Transaction already exists",
+      });
+    }
+
+    const transaction = await TransactionModel.create({
+      action,
+      walletAddress: req.user.walletAddress,
+      status,
+      txHash,
+      blockNumber,
+      personName,
+      personWallet,
+      orgName,
+      docType,
+      docHash,
+    });
+
+    res.status(201).json({
+      success: true,
+      transaction,
+    });
+
+  } catch (err) {
+    console.error("Transaction save error:", err);
+
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+});
+
+app.get("/transactions", authMiddleware, async (req, res) => {
+  try {
+    const transactions = await TransactionModel.find()
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      transactions,
+    });
+
+  } catch (err) {
+    console.error("Transaction fetch error:", err);
+
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
   }
 });
 
