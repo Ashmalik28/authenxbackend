@@ -1,18 +1,18 @@
-import express from "express"
-import dotenv from "dotenv"
-import connectDB from './db.js';
-import VerifierModel from './models/Verifier.js';
+import express from "express";
+import dotenv from "dotenv";
+import connectDB from "./db.js";
+import VerifierModel from "./models/Verifier.js";
 import OrganizationModel from "./models/Organization.js";
 import VerificationModel from "./models/Verification.js";
 import issuedDocsModel from "./models/IssuedDocs.js";
 import TransactionModel from "./models/Transactions.js";
-import cors from "cors"
-import { z} from "zod"
-import bcrypt from "bcrypt"
-import jwt from "jsonwebtoken"
+import cors from "cors";
+import { z } from "zod";
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 import authMiddleware from "./middleware/authMiddleware.js";
-import {ethers} from "ethers"
-import fs from 'fs'
+import { ethers } from "ethers";
+import fs from "fs";
 import multer from "multer";
 import { PinataSDK } from "pinata";
 
@@ -20,200 +20,229 @@ dotenv.config();
 
 const app = express();
 
-
 const corsOptions = {
-  origin: ['https://authenxfrontend1.vercel.app', 'https://www.authenx.in' , 'http://localhost:5173' ],
-  methods: ["GET", "POST", "PUT", "DELETE", 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  origin: [
+    "https://authenxfrontend1.vercel.app",
+    "https://www.authenx.in",
+    "http://localhost:5173",
+  ],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
 };
 
 app.use(cors(corsOptions));
 
-
 app.use(express.json());
 
 const uploadDir = "uploads";
-if(!fs.existsSync(uploadDir)){
-   fs.mkdirSync(uploadDir);
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
 }
 
 const storage = multer.diskStorage({
-  destination : (req , file , cb) => {
-    cb(null , uploadDir);
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
-  const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-  const safeName = file.originalname.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9._-]/g, "");
-  cb(null, `${uniqueSuffix}-${safeName}`);
-  }
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    const safeName = file.originalname
+      .replace(/\s+/g, "_")
+      .replace(/[^a-zA-Z0-9._-]/g, "");
+    cb(null, `${uniqueSuffix}-${safeName}`);
+  },
 });
 
 const storageMemory = multer.memoryStorage();
 
 const pinata = new PinataSDK({
   pinataJwt: process.env.PINATA_JWT,
-  pinataGateway: "yellow-determined-cephalopod-955.mypinata.cloud", 
+  pinataGateway: "yellow-determined-cephalopod-955.mypinata.cloud",
 });
 
-
-
-const fileFilter = (req , file , cb) => {
-  const allowedTypes = ["application/pdf" , "image/jpeg" , "image/png"];
-  if(allowedTypes.includes(file.mimetype)){
-    cb(null , true);
-  }else {
-    cb(new Error("Only Pdf and image files are allowed!"))
+const fileFilter = (req, file, cb) => {
+  const allowedTypes = ["application/pdf", "image/jpeg", "image/png"];
+  if (allowedTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error("Only Pdf and image files are allowed!"));
   }
 };
 
 const uploadMemory = multer({
-  storage : storageMemory,
-  limits : {fileSize : 10 * 1024 *1024},
-  fileFilter
-});
-
-const upload = multer({
-  storage ,
-  limits : {fileSize: 10 * 1024 * 1024},
+  storage: storageMemory,
+  limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter,
 });
 
-app.use("/uploads" , express.static(uploadDir));
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter,
+});
 
+app.use("/uploads", express.static(uploadDir));
 
 const SignupSchema = z.object({
-  firstName : z.string().min(2 , "First name should contain atleast 2 characters").max(10 , "First name should contain at max 20 characters"),
-  lastName : z.string().min(2 , "Last Name should contain atleast 2 characters").max(10 , "Last Name should contain at max 20 characters"),
-  email : z.string().email("Invalid email format"),
-  password : z.string().min(8 , "Password must be at least 8 characters long")
-})
+  firstName: z
+    .string()
+    .min(2, "First name should contain atleast 2 characters")
+    .max(10, "First name should contain at max 20 characters"),
+  lastName: z
+    .string()
+    .min(2, "Last Name should contain atleast 2 characters")
+    .max(10, "Last Name should contain at max 20 characters"),
+  email: z.string().email("Invalid email format"),
+  password: z.string().min(8, "Password must be at least 8 characters long"),
+});
 
 export const OrgKYCSchema = z.object({
-  orgName: z.string().min(2, "Organization name must be at least 2 characters").max(50, "Organization name must be at most 50 characters"),
+  orgName: z
+    .string()
+    .min(2, "Organization name must be at least 2 characters")
+    .max(50, "Organization name must be at most 50 characters"),
   orgType: z.string().min(2, "Organization type is required"),
   officialEmail: z.string().email("Invalid official email format"),
   website: z.string().url("Invalid website URL").optional().or(z.literal("")),
-  address: z.string().min(5, "Registered address must be at least 5 characters"),
+  address: z
+    .string()
+    .min(5, "Registered address must be at least 5 characters"),
   country: z.string().min(2, "Country is required"),
   registrationNo: z.string().min(2, "Registration number is required"),
   certificate: z
-  .any()
-  .refine(file => file != null, "Certificate file is required")
-  .refine(file => file.size <= 10_000_000, "File size must be <= 10 MB")
-  .refine(file => ["application/pdf", "image/png", "image/jpeg"].includes(file.mimetype),
-          "Only PDF, PNG, or JPEG files are allowed"),
-  fullName: z.string().min(2, "Full name must be at least 2 characters").max(50, "Full name must be at most 50 characters"),
-  position: z.string().min(2, "Position is required").max(30, "Position must be at most 30 characters"),
+    .any()
+    .refine((file) => file != null, "Certificate file is required")
+    .refine((file) => file.size <= 10_000_000, "File size must be <= 10 MB")
+    .refine(
+      (file) =>
+        ["application/pdf", "image/png", "image/jpeg"].includes(file.mimetype),
+      "Only PDF, PNG, or JPEG files are allowed",
+    ),
+  fullName: z
+    .string()
+    .min(2, "Full name must be at least 2 characters")
+    .max(50, "Full name must be at most 50 characters"),
+  position: z
+    .string()
+    .min(2, "Position is required")
+    .max(30, "Position must be at most 30 characters"),
   contactNo: z.string().min(5, "Contact number is required"),
   personalEmail: z.string().email("Invalid personal email format"),
 });
 
-app.post("/nonce" , async function(req ,res){
-  const {walletAddress} = req.body;
-  if(!walletAddress){
-    return res.status(400).json({msg : "Wallet Address required"})
+app.post("/nonce", async function (req, res) {
+  const { walletAddress } = req.body;
+  if (!walletAddress) {
+    return res.status(400).json({ msg: "Wallet Address required" });
   }
-  try{
-    let org = await OrganizationModel.findOne({walletAddress});
-    if(!org){
+  try {
+    let org = await OrganizationModel.findOne({ walletAddress });
+    if (!org) {
       org = await OrganizationModel.create({
-        walletAddress
-      })
+        walletAddress,
+      });
     }
-    res.json({nonce : org.nonce})
-  }catch (err) {
-    console.error("DB error: " , err.message);
-    res.status(500).json({error : "Server error"})
+    res.json({ nonce: org.nonce });
+  } catch (err) {
+    console.error("DB error: ", err.message);
+    res.status(500).json({ error: "Server error" });
   }
-})
+});
 
-app.post("/walletverify" , async function(req,res){
-  const {walletAddress , signature} = req.body;
-  const org = await OrganizationModel.findOne({walletAddress});
-  if(!org){
-    return res.status(400).json({msg : "Organization not found"})
+app.post("/walletverify", async function (req, res) {
+  const { walletAddress, signature } = req.body;
+  const org = await OrganizationModel.findOne({ walletAddress });
+  if (!org) {
+    return res.status(400).json({ msg: "Organization not found" });
   }
-  const recovered = ethers.verifyMessage(org.nonce , signature);
-  if(recovered.toLowerCase() !== walletAddress.toLowerCase()){
-    return res.status(401).json({msg : "Invalid Signature"})
+  const recovered = ethers.verifyMessage(org.nonce, signature);
+  if (recovered.toLowerCase() !== walletAddress.toLowerCase()) {
+    return res.status(401).json({ msg: "Invalid Signature" });
   }
   org.nonce = Math.floor(Math.random() * 1000000).toString();
   await org.save();
 
-  const token = jwt.sign({
-    walletAddress : org.walletAddress , id : org._id
-  },process.env.JWT_SECRET , {expiresIn : "1h"})
+  const token = jwt.sign(
+    {
+      walletAddress: org.walletAddress,
+      id: org._id,
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: "1h" },
+  );
 
-  res.json({token , iskycVerified : org.iskycVerified});
-})
+  res.json({ token, iskycVerified: org.iskycVerified });
+});
 
-app.post("/signup" , async function(req , res){
-
+app.post("/signup", async function (req, res) {
   const result = SignupSchema.safeParse(req.body);
-  
-    if(!result.success){
-      console.log(result);
-      console.log(result.error.issues);
-      const errors = result.error.issues.map((e) => ({
-        field : e.path,
-        message : e.message
-      }));
-      return res.status(400).json({errors});
-    }
-    try{
-      
-      const saltRounds = 10 ;
-      const hashedPassword = await bcrypt.hash(result.data.password , saltRounds);
-    
-      await VerifierModel.create({
-        ...result.data , 
-        password : hashedPassword,
-      });
-      res.json({
-      message : "You have Signed up"
+
+  if (!result.success) {
+    console.log(result);
+    console.log(result.error.issues);
+    const errors = result.error.issues.map((e) => ({
+      field: e.path,
+      message: e.message,
+    }));
+    return res.status(400).json({ errors });
+  }
+  try {
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(result.data.password, saltRounds);
+
+    await VerifierModel.create({
+      ...result.data,
+      password: hashedPassword,
     });
-    } catch (err){
-    console.error("DB error: " , err.message);
-    res.status(500).json({error : "Server error"})
+    res.json({
+      message: "You have Signed up",
+    });
+  } catch (err) {
+    console.error("DB error: ", err.message);
+    res.status(500).json({ error: "Server error" });
   }
 });
 
-app.post("/signin" , async function(req , res){
-  const {email , password } = req.body;
+app.post("/signin", async function (req, res) {
+  const { email, password } = req.body;
 
-  try{
+  try {
     const user = await VerifierModel.findOne({
-      email
-    })
-    if(!user){
+      email,
+    });
+    if (!user) {
       return res.status(400).json({
-        error : "Invalid email or Password"
-      })
+        error: "Invalid email or Password",
+      });
     }
-    const isMatch = await bcrypt.compare(password , user.password);
-    if(!isMatch){
-      res.status(400).json({error : "Invalid email or Password"})
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      res.status(400).json({ error: "Invalid email or Password" });
     }
 
-    const token = jwt.sign({
-      id : user._id , email : user.email
-    }, process.env.JWT_SECRET , {expiresIn : "1h"});
+    const token = jwt.sign(
+      {
+        id: user._id,
+        email: user.email,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" },
+    );
 
-    res.json({message : "Login Successful" , token });
-
-  }catch (err){
-    console.log("DB Error" , err.message);
-    res.status(500).json({error : "Server Error"});
+    res.json({ message: "Login Successful", token });
+  } catch (err) {
+    console.log("DB Error", err.message);
+    res.status(500).json({ error: "Server Error" });
   }
-     
-})
+});
 
 app.post("/upload", uploadMemory.single("file"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
     const blob = new Blob([req.file.buffer], { type: req.file.mimetype });
-    const file = new File([blob], req.file.originalname, { type: req.file.mimetype });
+    const file = new File([blob], req.file.originalname, {
+      type: req.file.mimetype,
+    });
 
     const uploadResponse = await pinata.upload.private.file(file);
 
@@ -233,12 +262,14 @@ app.get("/view/:cid", authMiddleware, async (req, res) => {
     const { cid } = req.params;
 
     if (!cid) {
-      return res.status(400).json({ success: false, message: "CID is required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "CID is required" });
     }
 
     const accessLink = await pinata.gateways.private.createAccessLink({
       cid,
-      expires: 30, 
+      expires: 30,
     });
 
     res.json({
@@ -256,16 +287,23 @@ app.get("/view/:cid", authMiddleware, async (req, res) => {
   }
 });
 
-
 app.get("/kycrequests", authMiddleware, async (req, res) => {
   try {
-    const OWNER_WALLET = "0x03034f8896c807b5077ABE110e1a9C7e8358ba50".toLowerCase();
+    const OWNER_WALLET =
+      "0x03034f8896c807b5077ABE110e1a9C7e8358ba50".toLowerCase();
 
-    if (!req.user.walletAddress || req.user.walletAddress.toLowerCase() !== OWNER_WALLET) {
-      return res.status(403).json({ error: "Access denied: Only owner can access this route" });
+    if (
+      !req.user.walletAddress ||
+      req.user.walletAddress.toLowerCase() !== OWNER_WALLET
+    ) {
+      return res
+        .status(403)
+        .json({ error: "Access denied: Only owner can access this route" });
     }
 
-    const requests = await OrganizationModel.find({ "kycDetails.status": "Pending" });
+    const requests = await OrganizationModel.find({
+      "kycDetails.status": "Pending",
+    });
 
     res.json({ success: true, requests });
   } catch (err) {
@@ -274,49 +312,61 @@ app.get("/kycrequests", authMiddleware, async (req, res) => {
   }
 });
 
-app.post('/updateOrgStatus', async (req, res) => {
-    try {
-        const { walletAddress, status } = req.body;
+app.post("/updateOrgStatus", async (req, res) => {
+  try {
+    const { walletAddress, status } = req.body;
 
-        if (!walletAddress || !status) {
-            return res.status(400).json({ success: false, message: "Missing required fields" });
-        }
-
-        if (!["Approved", "Rejected"].includes(status)) {
-            return res.status(400).json({ success: false, message: "Invalid status" });
-        }
-
-        const org = await OrganizationModel.findOne({ walletAddress });
-
-        if (!org) {
-            return res.status(404).json({ success: false, message: "Organization not found" });
-        }
-
-        const updatedOrg = await OrganizationModel.findOneAndUpdate(
-        { walletAddress },
-        {
-        $set: {
-            "kycDetails.status": status,
-            iskycVerified: status === "Approved"
-        }
-    },
-    { new: true, runValidators: true }
-);
-
-
-        res.json({ success: true, message: `Organization ${status.toLowerCase()} successfully` , data : updatedOrg });
-
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ success: false, message: "Server error" });
+    if (!walletAddress || !status) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Missing required fields" });
     }
+
+    if (!["Approved", "Rejected"].includes(status)) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid status" });
+    }
+
+    const org = await OrganizationModel.findOne({ walletAddress });
+
+    if (!org) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Organization not found" });
+    }
+
+    const updatedOrg = await OrganizationModel.findOneAndUpdate(
+      { walletAddress },
+      {
+        $set: {
+          "kycDetails.status": status,
+          iskycVerified: status === "Approved",
+        },
+      },
+      { new: true, runValidators: true },
+    );
+
+    res.json({
+      success: true,
+      message: `Organization ${status.toLowerCase()} successfully`,
+      data: updatedOrg,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
 });
 
 app.get("/me", authMiddleware, async (req, res) => {
   try {
-    const org = await OrganizationModel.findOne({ walletAddress: req.user.walletAddress });
+    const org = await OrganizationModel.findOne({
+      walletAddress: req.user.walletAddress,
+    });
     if (!org) {
-      return res.status(404).json({ success: false, message: "Organization not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Organization not found" });
     }
     res.json({ success: true, kycDetails: org.kycDetails });
   } catch (err) {
@@ -325,8 +375,8 @@ app.get("/me", authMiddleware, async (req, res) => {
   }
 });
 
-app.post("/verify" , authMiddleware , async function(req,res){
-  try{
+app.post("/verify", authMiddleware, async function (req, res) {
+  try {
     let user = await VerifierModel.findById(req.user.id).select("-password");
     if (!user) {
       user = await OrganizationModel.findById(req.user.id).select("-password");
@@ -336,15 +386,23 @@ app.post("/verify" , authMiddleware , async function(req,res){
       return res.status(404).json({ error: "User not found" });
     }
 
-    const {name , email , cid} = req.body;
+    const { name, email, cid } = req.body;
 
-    if(!name || !email || !cid){
-      return res.status(400).json({error : "All fields (name, email, cid) are required when submitting a form"});
+    if (!name || !email || !cid) {
+      return res
+        .status(400)
+        .json({
+          error:
+            "All fields (name, email, cid) are required when submitting a form",
+        });
     }
 
     const newVerification = new VerificationModel({
-      name , email , cid , timestamp : new Date()
-    })
+      name,
+      email,
+      cid,
+      timestamp: new Date(),
+    });
 
     await newVerification.save();
 
@@ -352,37 +410,29 @@ app.post("/verify" , authMiddleware , async function(req,res){
       message: "Verification details stored successfully",
       data: newVerification,
     });
-
-
-  }catch (err) {
-    console.log("DB error" , err.message);
-    res.status(500).json({error : "Server error"});
+  } catch (err) {
+    console.log("DB error", err.message);
+    res.status(500).json({ error: "Server error" });
   }
 });
 
-app.get("/dashboard" , authMiddleware , async function(req,res){
-  try{
+app.get("/dashboard", authMiddleware, async function (req, res) {
+  try {
     const user = await VerifierModel.findById(req.user.id).select("-password");
-    if(!user){
-      return res.status(404).json({error : "User not found"});
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
     }
-    res.json({message : "Token valid" , user});
-  }catch (err) {
-    console.log("DB error" , err.message);
-    res.status(500).json({error : "Server error"});
+    res.json({ message: "Token valid", user });
+  } catch (err) {
+    console.log("DB error", err.message);
+    res.status(500).json({ error: "Server error" });
   }
 });
 
 app.post("/issue", authMiddleware, async (req, res) => {
   try {
-    const {
-      personName,
-      personWallet,
-      docType,
-      orgWallet,
-      orgName,
-      docHash,
-    } = req.body;
+    const { personName, personWallet, docType, orgWallet, orgName, docHash } =
+      req.body;
 
     let user = await VerifierModel.findById(req.user.id).select("-password");
     if (!user) {
@@ -459,7 +509,6 @@ app.post("/transactions", authMiddleware, async (req, res) => {
       success: true,
       transaction,
     });
-
   } catch (err) {
     console.error("Transaction save error:", err);
 
@@ -472,14 +521,12 @@ app.post("/transactions", authMiddleware, async (req, res) => {
 
 app.get("/transactions", authMiddleware, async (req, res) => {
   try {
-    const transactions = await TransactionModel.find()
-      .sort({ createdAt: -1 });
+    const transactions = await TransactionModel.find().sort({ createdAt: -1 });
 
     res.status(200).json({
       success: true,
       transactions,
     });
-
   } catch (err) {
     console.error("Transaction fetch error:", err);
 
@@ -490,36 +537,40 @@ app.get("/transactions", authMiddleware, async (req, res) => {
   }
 });
 
-app.post("/getWallet" , async (req , res) => {
+app.post("/getWallet", async (req, res) => {
   try {
-    const {docHash} = req.body;
-    let doc = await issuedDocsModel.findOne({docHash});
-    if(!doc){
-      return res.status(401).json({error : "No wallet address available"})
+    const { docHash } = req.body;
+    let doc = await issuedDocsModel.findOne({ docHash });
+    if (!doc) {
+      return res.status(401).json({ error: "No wallet address available" });
     }
     return res.status(200).json({
-      message : "Wallet address found" ,
-      walletAddress : doc.personWallet
-    })
-  }catch (err){
-    console.log("DB error" , err.message);
-    res.status(500).json({error : "Server error"});
+      message: "Wallet address found",
+      walletAddress: doc.personWallet,
+    });
+  } catch (err) {
+    console.log("DB error", err.message);
+    res.status(500).json({ error: "Server error" });
   }
-})
+});
 
 app.get("/dashboard-stats", async (req, res) => {
   try {
-    const totalDocuments = await issuedDocsModel.countDocuments({ valid: true });
+    const totalDocuments = await issuedDocsModel.countDocuments({
+      valid: true,
+    });
     const totalVerifications = await VerificationModel.countDocuments();
-    const totalVerifiedOrgs = await OrganizationModel.countDocuments({ "kycDetails.status": "Approved" });
+    const totalVerifiedOrgs = await OrganizationModel.countDocuments({
+      "kycDetails.status": "Approved",
+    });
 
     res.json({
       success: true,
       data: {
         totalDocuments,
         totalVerifications,
-        totalVerifiedOrgs
-      }
+        totalVerifiedOrgs,
+      },
     });
   } catch (err) {
     console.error(err);
@@ -527,76 +578,92 @@ app.get("/dashboard-stats", async (req, res) => {
   }
 });
 
-app.post("/kyc", authMiddleware, upload.single("certificate"), async (req, res) => {
-  try {
-    const org = await OrganizationModel.findById(req.user.id);
-    if (!org) {
-      return res.status(404).json({ error: "Organization not found" });
-    }
+app.post(
+  "/kyc",
+  authMiddleware,
+  upload.single("certificate"),
+  async (req, res) => {
+    try {
+      const org = await OrganizationModel.findById(req.user.id);
+      if (!org) {
+        return res.status(404).json({ error: "Organization not found" });
+      }
 
-    let website = req.body.website || "";
+      let website = req.body.website || "";
 
-    if (website && !/^https?:\/\//i.test(website)) {
-    website = "https://" + website; 
-    }
+      if (website && !/^https?:\/\//i.test(website)) {
+        website = "https://" + website;
+      }
 
-    const payload = {
-      ...req.body,
-      website ,
-      certificate: req.file
-    };
+      const payload = {
+        ...req.body,
+        website,
+        certificate: req.file,
+      };
 
-    const validatedData = OrgKYCSchema.safeParse(payload);
-    if (!validatedData.success) {
-    return res.status(400).json({ errors: validatedData.error.issues });
-    }
+      const validatedData = OrgKYCSchema.safeParse(payload);
+      if (!validatedData.success) {
+        return res.status(400).json({ errors: validatedData.error.issues });
+      }
 
-    const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
+      const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
 
-    const updatedOrg = await OrganizationModel.findOneAndUpdate(
-      { walletAddress: req.user.walletAddress },
-      {
-        kycDetails: {
-          orgName: validatedData.data.orgName,
-          orgType: validatedData.data.orgType,
-          officialEmail: validatedData.data.officialEmail,
-          website: validatedData.data.website,
-          address: validatedData.data.address,
-          country: validatedData.data.country,
-          registrationNo: validatedData.data.registrationNo,
-          certificateUrl: fileUrl,
-          contactPerson: {
-            fullName: validatedData.data.fullName,
-            position: validatedData.data.position,
-            contactNo: validatedData.data.contactNo,
-            personalEmail: validatedData.data.personalEmail
+      const updatedOrg = await OrganizationModel.findOneAndUpdate(
+        { walletAddress: req.user.walletAddress },
+        {
+          kycDetails: {
+            orgName: validatedData.data.orgName,
+            orgType: validatedData.data.orgType,
+            officialEmail: validatedData.data.officialEmail,
+            website: validatedData.data.website,
+            address: validatedData.data.address,
+            country: validatedData.data.country,
+            registrationNo: validatedData.data.registrationNo,
+            certificateUrl: fileUrl,
+            contactPerson: {
+              fullName: validatedData.data.fullName,
+              position: validatedData.data.position,
+              contactNo: validatedData.data.contactNo,
+              personalEmail: validatedData.data.personalEmail,
+            },
+            status: "Pending",
           },
-          status: "Pending"
+          iskycVerified: false,
         },
-        iskycVerified: false
-      },
-      { new: true }
-    );
+        { new: true },
+      );
 
-    res.json({ success: true, message: "KYC submitted successfully!", data: updatedOrg });
-  } catch (err) {
-    if (err instanceof z.ZodError) {
-      return res.status(400).json({ errors: err.errors });
+      res.json({
+        success: true,
+        message: "KYC submitted successfully!",
+        data: updatedOrg,
+      });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ errors: err.errors });
+      }
+      if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "File size should not exceed 10 MB",
+          });
+      }
+      console.log("DB error", err.message);
+      res.status(500).json({ error: "Server error" });
     }
-    if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
-      return res.status(400).json({ success: false, message: "File size should not exceed 10 MB" });
-    }
-    console.log("DB error", err.message);
-    res.status(500).json({ error: "Server error" });
-  }
-});
+  },
+);
 
 app.get("/check-user-type", authMiddleware, async (req, res) => {
   try {
-    const userId = req.user.id; 
+    const userId = req.user.id;
 
     if (!userId) {
-      return res.status(400).json({ success: false, message: "User ID missing in token" });
+      return res
+        .status(400)
+        .json({ success: false, message: "User ID missing in token" });
     }
 
     const org = await OrganizationModel.findById(userId);
@@ -614,7 +681,7 @@ app.get("/check-user-type", authMiddleware, async (req, res) => {
         success: true,
         type: "verifier",
         name: verifier.firstName,
-        email : verifier.email
+        email: verifier.email,
       });
     }
 
@@ -623,24 +690,57 @@ app.get("/check-user-type", authMiddleware, async (req, res) => {
       type: "normal",
       name: "Guest User",
     });
-
   } catch (error) {
     console.error("Error checking user type:", error);
     res.status(500).json({ success: false, message: "Server error" });
   }
 });
 
-
-app.get("/auth/check" , authMiddleware , (req , res) => {
-  res.json({valid : true});
+app.get("/auth/check", authMiddleware, (req, res) => {
+  res.json({ valid: true });
 });
 
+app.post("/getDocument", async (req, res) => {
+  try {
+    const { docHash } = req.body;
+
+    if (!docHash) {
+      return res.status(400).json({
+        success: false,
+        message: "Document hash is required",
+      });
+    }
+
+    const document = await issuedDocsModel.findOne({
+      docHash,
+      valid: true,
+    });
+
+    if (!document) {
+      return res.status(404).json({
+        success: false,
+        message: "Document not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      document,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+});
 
 connectDB().then(() => {
   const PORT = process.env.PORT || 3000; // Define PORT
-  
+
   app.listen(PORT, () => {
     // Log the *actual* port it's using
-    console.log(`Server running on port ${PORT}`); 
+    console.log(`Server running on port ${PORT}`);
   });
 });
