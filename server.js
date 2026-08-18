@@ -696,6 +696,145 @@ app.get("/check-user-type", authMiddleware, async (req, res) => {
   }
 });
 
+app.get("/profile", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: "User ID missing in token",
+      });
+    }
+
+    const organization = await OrganizationModel.findById(userId);
+
+    if (organization) {
+      const walletAddress = organization.walletAddress;
+
+      const issuedDocuments = await issuedDocsModel.find({
+        orgWallet: walletAddress,
+      }).select("docHash");
+
+      const documentsIssued = issuedDocuments.length;
+
+      const documentHashes = issuedDocuments.map((doc) => doc.docHash);
+
+      let documentsVerified = 0;
+
+      if (documentHashes.length > 0) {
+        const verifiedDocumentHashes = await VerificationModel.distinct(
+          "cid",
+          {
+            cid: { $in: documentHashes },
+          }
+        );
+
+        documentsVerified = verifiedDocumentHashes.length;
+      }
+
+      const activeCredentials = documentsIssued;
+
+      return res.status(200).json({
+        success: true,
+        userType: "organization",
+
+        profile: {
+          fullName:
+            organization.kycDetails?.contactPerson?.fullName || "",
+
+          email:
+            organization.kycDetails?.contactPerson?.personalEmail || "",
+
+          role:
+            organization.kycDetails?.contactPerson?.position ||
+            "Organization Admin",
+
+          roleLabel: "Organization Member",
+
+          status:
+            organization.kycDetails?.status || "Pending",
+
+          createdAt: organization.createdAt,
+        },
+
+        organization: {
+          name: organization.kycDetails?.orgName || "",
+
+          type:
+            organization.kycDetails?.orgType || "",
+
+          officialEmail:
+            organization.kycDetails?.officialEmail || "",
+
+          website:
+            organization.kycDetails?.website || "",
+
+          address:
+            organization.kycDetails?.address || "",
+
+          country:
+            organization.kycDetails?.country || "",
+
+          registrationNo:
+            organization.kycDetails?.registrationNo || "",
+
+          verified: organization.iskycVerified,
+
+          walletAddress: organization.walletAddress,
+
+          kycStatus: organization.iskycVerified
+            ? "Fully Compliant"
+            : "Not Verified",
+
+          documentsIssued,
+
+          documentsVerified,
+
+          activeCredentials,
+        },
+      });
+    }
+
+    const verifier = await VerifierModel.findById(userId).select(
+      "-password"
+    );
+
+    if (verifier) {
+      return res.status(200).json({
+        success: true,
+        userType: "verifier",
+
+        profile: {
+          fullName: `${verifier.firstName} ${verifier.lastName}`,
+
+          email: verifier.email,
+
+          role: "Verifier",
+
+          roleLabel: "Verifier",
+
+          status: "Active",
+
+          createdAt: verifier.createdAt,
+        },
+      });
+    }
+
+    return res.status(404).json({
+      success: false,
+      message: "User not found",
+    });
+  } catch (error) {
+    console.error("Profile fetch error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+});
+
 app.get("/auth/check", authMiddleware, (req, res) => {
   res.json({ valid: true });
 });
