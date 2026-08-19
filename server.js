@@ -15,6 +15,8 @@ import { ethers } from "ethers";
 import fs from "fs";
 import multer from "multer";
 import { PinataSDK } from "pinata";
+import cloudinary from "./config/cloudinary.js"
+import upload from "./middleware/upload.js"
 
 dotenv.config();
 
@@ -840,12 +842,6 @@ app.post(
   authMiddleware,
   upload.single("profilePicture"),
   async (req, res) => {
-
-    console.log("PROFILE PICTURE ROUTE HIT");
-
-    console.log("File:", req.file);
-    console.log("User:", req.user);
-    
     try {
       if (!req.file) {
         return res.status(400).json({
@@ -954,10 +950,9 @@ app.post("/getDocument", async (req, res) => {
 });
 
 connectDB().then(() => {
-  const PORT = process.env.PORT || 3000; // Define PORT
+  const PORT = process.env.PORT || 3000; 
 
   app.listen(PORT, () => {
-    // Log the *actual* port it's using
     console.log(`Server running on port ${PORT}`);
   });
 });
