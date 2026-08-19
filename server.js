@@ -839,37 +839,15 @@ app.get("/profile", authMiddleware, async (req, res) => {
 
 app.post(
   "/profile-picture",
-
-  (req, res, next) => {
-    console.log("1. PROFILE PICTURE REQUEST RECEIVED");
-    next();
-  },
-
   authMiddleware,
-
-  (req, res, next) => {
-    console.log("2. AUTH MIDDLEWARE PASSED");
-    next();
-  },
-
   upload.single("profilePicture"),
-
-  (req, res, next) => {
-    console.log("3. MULTER PASSED");
-    console.log("FILE:", req.file);
-    next();
-  },
-
   async (req, res) => {
     try {
-      console.log("4. PROFILE PICTURE HANDLER");
-
       if (!req.file) {
         return res.status(400).json({
           error: "No profile picture provided",
         });
       }
-
       const result = await new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
           {
@@ -889,8 +867,7 @@ app.post(
       });
 
       const profilePicture = result.secure_url;
-
-      console.log("5. CLOUDINARY URL:", profilePicture);
+      console.log(profilePicture);
 
       if (req.user.walletAddress) {
         const organization = await OrganizationModel.findById(req.user.id);
@@ -903,7 +880,9 @@ app.post(
 
         organization.profilePicture = profilePicture;
         await organization.save();
-      } else {
+      }
+
+      else {
         const verifier = await VerifierModel.findById(req.user.id);
 
         if (!verifier) {
@@ -915,8 +894,6 @@ app.post(
         verifier.profilePicture = profilePicture;
         await verifier.save();
       }
-
-      console.log("6. PROFILE PICTURE SAVED TO MONGODB");
 
       res.status(200).json({
         message: "Profile picture uploaded successfully",
