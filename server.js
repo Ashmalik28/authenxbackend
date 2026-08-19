@@ -758,6 +758,8 @@ app.get("/profile", authMiddleware, async (req, res) => {
             organization.kycDetails?.status || "Pending",
 
           createdAt: organization.createdAt,
+
+          profilePicture: organization.profilePicture || "",
         },
 
         organization: {
@@ -819,6 +821,8 @@ app.get("/profile", authMiddleware, async (req, res) => {
           status: "Active",
 
           createdAt: verifier.createdAt,
+
+          profilePicture: verifier.profilePicture || "",
         },
       });
     }
