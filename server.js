@@ -216,7 +216,7 @@ app.post("/signin", async function (req, res) {
     }
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      res.status(400).json({ error: "Invalid email or Password" });
+      return res.status(400).json({ error: "Invalid email or Password" });
     }
 
     const token = jwt.sign(
@@ -834,6 +834,78 @@ app.get("/profile", authMiddleware, async (req, res) => {
     });
   }
 });
+
+app.post(
+  "/profile-picture",
+  authMiddleware,
+  upload.single("profilePicture"),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({
+          error: "No profile picture provided",
+        });
+      }
+      const result = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          {
+            folder: "authenx/profile-pictures",
+            resource_type: "image",
+          },
+          (error, result) => {
+            if (error) {
+              reject(error);
+            } else {
+              resolve(result);
+            }
+          }
+        );
+
+        stream.end(req.file.buffer);
+      });
+
+      const profilePicture = result.secure_url;
+
+      if (req.user.walletAddress) {
+        const organization = await OrganizationModel.findById(req.user.id);
+
+        if (!organization) {
+          return res.status(404).json({
+            error: "Organization not found",
+          });
+        }
+
+        organization.profilePicture = profilePicture;
+        await organization.save();
+      }
+
+      else {
+        const verifier = await VerifierModel.findById(req.user.id);
+
+        if (!verifier) {
+          return res.status(404).json({
+            error: "Verifier not found",
+          });
+        }
+
+        verifier.profilePicture = profilePicture;
+        await verifier.save();
+      }
+
+      res.status(200).json({
+        message: "Profile picture uploaded successfully",
+        profilePicture,
+      });
+
+    } catch (error) {
+      console.error("Profile picture upload error:", error);
+
+      res.status(500).json({
+        error: "Failed to upload profile picture",
+      });
+    }
+  }
+);
 
 app.get("/auth/check", authMiddleware, (req, res) => {
   res.json({ valid: true });

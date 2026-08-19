@@ -7,7 +7,8 @@ const verifierSignupSchema = new Schema({
     firstName: { type: String, required: true },
     lastName: { type: String, required: true },
     email: { type: String, unique: true, required: true },
-    password: { type: String, required: true }
+    password: { type: String, required: true },
+    profilePicture: { type: String, default: "" }
 }, { timestamps: true });
 
 const VerifierModel = mongoose.model('Verifier', verifierSignupSchema);

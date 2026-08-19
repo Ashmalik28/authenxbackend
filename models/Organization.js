@@ -30,6 +30,8 @@ const kycDetailsSchema = new Schema({
 const organizationSchema = new Schema ({
     walletAddress : {type : String , unique : true , required : true},
     nonce : {type : String , default : () => Math.floor(Math.random() * 1000000).toString()},
+     profilePicture: { type: String, default: ""
+    },
     kycDetails : {type : kycDetailsSchema},
     iskycVerified : {type : Boolean , default : false},
 },{ timestamps: true });
