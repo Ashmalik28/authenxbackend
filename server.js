@@ -867,6 +867,7 @@ app.post(
       });
 
       const profilePicture = result.secure_url;
+      console.log(profilePicture);
 
       if (req.user.walletAddress) {
         const organization = await OrganizationModel.findById(req.user.id);
