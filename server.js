@@ -76,7 +76,7 @@ const uploadMemory = multer({
   fileFilter,
 });
 
-const upload = multer({
+const upload1 = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter,
@@ -583,7 +583,7 @@ app.get("/dashboard-stats", async (req, res) => {
 app.post(
   "/kyc",
   authMiddleware,
-  upload.single("certificate"),
+  upload1.single("certificate"),
   async (req, res) => {
     try {
       const org = await OrganizationModel.findById(req.user.id);
