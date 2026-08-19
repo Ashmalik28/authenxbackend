@@ -840,6 +840,12 @@ app.post(
   authMiddleware,
   upload.single("profilePicture"),
   async (req, res) => {
+
+    console.log("PROFILE PICTURE ROUTE HIT");
+
+    console.log("File:", req.file);
+    console.log("User:", req.user);
+    
     try {
       if (!req.file) {
         return res.status(400).json({
